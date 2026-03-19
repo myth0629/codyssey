@@ -3,9 +3,15 @@ print('Hello Mars')
 def read_file(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
-            content = file.read()
-            print(content)
-            return content
+            lines = file.readlines()
+
+            # 시간 기준 역순 정렬 (각 줄이 시간으로 시작한다고 가정)
+            lines.sort(reverse=True)
+
+            for line in lines:
+                print(line.strip())
+
+            return lines
         
     except FileNotFoundError:
         print('파일을 찾을 수 없습니다.')
@@ -18,13 +24,21 @@ def read_file(file_path):
 
 def create_markdown(content):
     try:
+        # 전체 로그 저장
         with open("log_analysis.md", "w", encoding="utf-8") as f:
-            f.write(content if content else "")
+            f.writelines(content if content else [])
+
+        # 문제 있는 로그 필터링
+        problem_lines = [line for line in content if "explosion" in line or "WARN" in line]
+
+        with open("log_problems.md", "w", encoding="utf-8") as f:
+            f.writelines(problem_lines)
+
     except Exception as e:
         print(f"파일 작성 오류: {e}")
 
 def main():
-    file_path = '1week/mission_computer_main.log'
+    file_path = '2week/2week/mission_computer_main.log'
     content = read_file(file_path)
     create_markdown(content)
 
