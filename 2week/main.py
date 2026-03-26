@@ -1,5 +1,3 @@
-print('Hello Mars')
-
 def read_file(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -38,7 +36,7 @@ def create_markdown(content):
         print(f"파일 작성 오류: {e}")
 
 def main():
-    file_path = '2week/2week/mission_computer_main.log'
+    file_path = '3week/'
     content = read_file(file_path)
     create_markdown(content)
 
