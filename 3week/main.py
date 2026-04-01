@@ -57,7 +57,7 @@ def read_string(file):
 
     return data.decode('utf-8')
 
-# 이진 파일을 
+# 이진 파일로 저장
 def save_bin(file_path, header, rows):
     try:
         with open(file_path, 'wb') as file:
@@ -73,7 +73,7 @@ def save_bin(file_path, header, rows):
     except Exception as e:
         print(f'이진 파일 저장 오류: {e}')
 
-
+# 이진 파일을 읽기
 def load_bin(file_path):
     try:
         with open(file_path, 'rb') as file:
