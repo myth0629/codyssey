@@ -5,7 +5,7 @@ import random
 
 class DummySensor:
     def __init__(self):
-        # 센서가 관리하는 환경 값을 저장할 사전
+        # 센서가 관리하는 환경 값을 저장할 딕셔너리
         self.env_values = {
             'mars_base_internal_temperature': None,
             'mars_base_external_temperature': None,
@@ -43,7 +43,7 @@ class DummySensor:
         return self.env_values
 
 
-# 더미 센서를 생성하고, 값 설정 후 확인한다.
-ds = DummySensor()
+# 더미 센서를 생성하고, 값 설정 후 확인
+ds = DummySensor() # 인스턴스
 ds.set_env()
 print(ds.get_env())
