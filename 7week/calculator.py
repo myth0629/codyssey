@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import QApplication, QGridLayout, QLabel, QPushButton, QVBo
 class Calculator(QWidget):
     def __init__(self):
         super().__init__()
+        # 계산에 필요한 현재 값과 연산 상태를 저장한다.
         self.current_value = '0'
         self.stored_value = None
         self.pending_operator = None
@@ -14,7 +15,8 @@ class Calculator(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowTitle('Calculator')
+        # 계산기 창과 전체 레이아웃을 설정한다.
+        self.setWindowTitle('Calculator')       
         self.setFixedSize(360, 560)
         self.setStyleSheet('background-color: #000000;')
 
@@ -33,6 +35,7 @@ class Calculator(QWidget):
         button_layout = QGridLayout()
         button_layout.setSpacing(10)
 
+        # 아이폰 계산기와 같은 버튼 배치로 구성한다.
         buttons = [
             ['AC', '+/-', '%', '÷'],
             ['7', '8', '9', '×'],
@@ -56,6 +59,7 @@ class Calculator(QWidget):
         self.setLayout(main_layout)
 
     def create_button(self, text):
+        # 버튼 종류에 따라 색상과 클릭 이벤트를 지정한다.
         button = QPushButton(text)
         button.setFixedHeight(64)
         button.clicked.connect(lambda: self.handle_button_click(text))
@@ -93,19 +97,20 @@ class Calculator(QWidget):
         elif text == '.':
             self.input_decimal_point()
         elif text == 'AC':
-            self.clear()
+            self.reset()
         elif text == '+/-':
-            self.toggle_sign()
+            self.negative_positive()
         elif text == '%':
-            self.convert_to_percent()
+            self.percent()
         elif text in ['÷', '×', '-', '+']:
             self.set_operator(text)
         elif text == '=':
-            self.calculate_result()
+            self.equal()
 
         self.update_display()
 
     def input_number(self, number):
+        # 새 숫자를 입력하거나 기존 숫자 뒤에 이어 붙인다.
         if self.current_value == '0' or self.waiting_for_new_number:
             self.current_value = number
             self.waiting_for_new_number = False
@@ -120,13 +125,13 @@ class Calculator(QWidget):
         if '.' not in self.current_value:
             self.current_value += '.'
 
-    def clear(self):
+    def reset(self):
         self.current_value = '0'
         self.stored_value = None
         self.pending_operator = None
         self.waiting_for_new_number = False
 
-    def toggle_sign(self):
+    def negative_positive(self):
         if self.current_value == '0':
             return
 
@@ -135,39 +140,53 @@ class Calculator(QWidget):
         else:
             self.current_value = '-' + self.current_value
 
-    def convert_to_percent(self):
+    def percent(self):
         self.current_value = self.format_number(float(self.current_value) / 100)
 
     def set_operator(self, operator):
+        # 연산자를 저장하고 다음 숫자 입력을 기다린다.
         if self.pending_operator and not self.waiting_for_new_number:
-            self.calculate_result()
+            self.equal()
 
         self.stored_value = float(self.current_value)
         self.pending_operator = operator
         self.waiting_for_new_number = True
 
-    def calculate_result(self):
+    def add(self, a, b):
+        return a + b
+
+    def subtract(self, a, b):
+        return a - b
+
+    def multiply(self, a, b):
+        return a * b
+
+    def divide(self, a, b):
+        if b == 0:
+            return "Error"
+        return a / b
+
+    def equal(self):
+        # 저장된 숫자와 현재 숫자로 사칙연산을 수행한다.
         if self.pending_operator is None or self.stored_value is None:
             return
 
         current_number = float(self.current_value)
 
         if self.pending_operator == '+':
-            result = self.stored_value + current_number
+            result = self.add(self.stored_value, current_number)
         elif self.pending_operator == '-':
-            result = self.stored_value - current_number
+            result = self.subtract(self.stored_value, current_number)
         elif self.pending_operator == '×':
-            result = self.stored_value * current_number
+            result = self.multiply(self.stored_value, current_number)
         elif self.pending_operator == '÷':
-            if current_number == 0:
-                self.current_value = 'Error'
-                self.stored_value = None
-                self.pending_operator = None
-                self.waiting_for_new_number = True
-                return
-            result = self.stored_value / current_number
+            result = self.divide(self.stored_value, current_number)
 
-        self.current_value = self.format_number(result)
+        if result == "Error":
+            self.current_value = 'Error'
+        else:
+            self.current_value = self.format_number(result)
+            
         self.stored_value = None
         self.pending_operator = None
         self.waiting_for_new_number = True
