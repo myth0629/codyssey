@@ -81,7 +81,7 @@ else:
 ### 4. 사전 키워드로 자동 탐색 중지하기
 
 ```python
-DICTIONARY = ["mars", "base", "password", "system", "secret", "danger", "login"]
+DICTIONARY = ["mars"]
 ```
 
 `DICTIONARY`는 해독 결과에서 찾을 단어 목록입니다. 암호문이 올바르게 해독되면 문장 안에 `mars`, `base`, `password` 같은 의미 있는 단어가 포함될 가능성이 높습니다.
