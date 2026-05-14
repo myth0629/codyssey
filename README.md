@@ -1,70 +1,120 @@
 # 카이사르 암호 해독기
 
-## 1. 개요 및 동작 방식
-카이사르 암호는 문장 내의 모든 알파벳을 일정한 거리(Shift)만큼 밀어서 다른 알파벳으로 바꾸는 암호화 방식입니다. 
-본 프로그램은 이 Shift 값이 무엇인지 모른다는 가정하에, 가능한 모든 위치 이동(0~25)을 시도하는 **브루트 포스(Brute-force) 방식**을 사용하여 암호를 해독합니다.
+`password.txt`에 저장된 카이사르 암호문을 읽고, 가능한 모든 자리 이동값(Shift)으로 해독 결과를 출력한 뒤, 사용자가 선택한 결과를 `result.txt`에 저장하는 프로그램입니다.
 
----
+## 개요
 
-## 2. 핵심 로직 분석
+카이사르 암호는 알파벳을 일정한 칸수만큼 밀어서 다른 문자로 바꾸는 단순 치환 암호입니다.
 
-### 2.1 암호 해독 알고리즘 (`caesar_cipher_decode`)
-```python
-def caesar_cipher_decode(target_text):
-    decoded_texts = []
-    for shift in range(ALPHABET_COUNT):
-        decoded_text = ""
-        for char in target_text:
-            if "A" <= char <= "Z":
-                decoded_text += chr((ord(char) - ord("A") - shift) % ALPHABET_COUNT + ord("A"))
-            elif "a" <= char <= "z":
-                # 소문자 처리 로직 동일
-            else:
-                decoded_text += char
-        decoded_texts.append(decoded_text)
-    return decoded_texts
+예를 들어 알파벳을 3칸 밀면 `A`는 `D`, `B`는 `E`가 됩니다. 반대로 해독할 때는 같은 칸수만큼 되돌리면 원문을 얻을 수 있습니다.
+
+이 프로그램은 암호화에 사용된 Shift 값을 모른다는 가정으로 동작합니다. 따라서 `0`부터 `25`까지 모든 Shift 값을 시도하고, 사람이 출력 결과를 직접 확인해 올바른 문장을 고르는 브루트 포스 방식으로 해독합니다.
+
+## 파일 구성
+
+- `9week/caesar_cipher.py`: 카이사르 암호 해독 프로그램
+- `password.txt`: 해독할 암호문이 들어 있는 입력 파일
+- `result.txt`: 사용자가 선택한 최종 해독 결과가 저장되는 출력 파일
+
+## 실행 방법
+
+프로젝트 루트 디렉터리에서 아래 명령어를 실행합니다.
+
+```bash
+python 9week/caesar_cipher.py
 ```
-- **해석 및 의도**:
-  - `ord()`와 `chr()` 함수를 활용해 문자를 아스키코드(숫자)로 변환한 뒤 사칙연산을 수행합니다.
-  - **왜 모듈러(`% ALPHABET_COUNT`) 연산을 사용했는가?**: 알파벳 순서를 밀었을 때 'Z'를 넘어가면 다시 'A'로 돌아오게 하는(Wrap-around) 가장 수학적이고 깔끔한 방법입니다. 조건문(`if value > 'Z'`)으로 처리할 수도 있지만, 모듈러 연산을 통해 코드의 복잡성을 낮추고 가독성을 높였습니다.
-  - 알파벳이 아닌 문자(공백, 특수기호 등)는 암호화 대상이 아니므로 그대로 유지(`else` 구문)하도록 설계하여 문맥을 파악하기 쉽게 했습니다.
 
-### 2.2 안전한 파일 입출력 및 예외 처리 (`read_password_file`)
+프로그램은 `password.txt`를 읽은 뒤 Shift `0`부터 `25`까지의 해독 후보를 모두 출력합니다.
+
+출력된 후보 중 의미가 통하는 문장의 Shift 번호를 입력하면, 해당 문장이 `result.txt`에 저장됩니다.
+
+## 동작 흐름
+
+1. `password.txt` 파일을 읽습니다.
+2. Shift 값을 `0`부터 `25`까지 바꾸며 모든 해독 후보를 만듭니다.
+3. 각 Shift 값과 해독 결과를 화면에 출력합니다.
+4. 사용자가 올바른 Shift 번호를 입력합니다.
+5. 선택된 해독 결과를 `result.txt`에 저장합니다.
+
+## 핵심 로직
+
+### 1. 모든 Shift 값으로 해독하기
+
 ```python
-def read_password_file():
-    try:
-        with open("password.txt", "r", encoding="utf-8") as file:
-            return file.read()
-    except FileNotFoundError:
-        print("password.txt 파일을 찾을 수 없습니다.")
-    # PermissionError, OSError 등 예외 처리 생략됨
+for shift in range(ALPHABET_COUNT):
+    decoded_text = ""
 ```
-- **해석 및 의도**:
-  - `with open(...)` 컨텍스트 매니저를 사용하여 파일을 열었습니다.
-  - **왜 이렇게 썼는가?**: 파일 처리는 외부 환경(OS, 디스크 상태, 사용자 권한 등)에 의존하므로 에러 발생 확률이 높습니다. `try-except` 블록을 통하여 `FileNotFoundError`(파일 누락), `PermissionError`(권한 없음) 등을 구체적으로 분기하여 처리했습니다. 이렇게 하면 단순히 프로그램이 크래시(Crash) 나는 것을 방지하고 사용자에게 어떤 문제가 발생했는지 정확한 피드백을 줄 수 있습니다.
-  - `with` 문을 사용하면 도중에 에러가 나거나 작업이 끝났을 때 파일 스트림을 확실하게 닫아 메모리 누수를 방지할 수 있습니다.
 
-### 2.3 안정적인 사용자 입력 검증 (`select_shift`)
+`ALPHABET_COUNT`는 알파벳 개수인 `26`입니다. 카이사르 암호에서 가능한 Shift 값은 `0~25`뿐이므로, 모든 경우를 순서대로 검사합니다.
+
+이 방식은 암호에 사용된 Shift 값을 몰라도 가능한 결과를 전부 확인할 수 있다는 장점이 있습니다.
+
+### 2. 대문자와 소문자 유지하기
+
 ```python
-def select_shift(decoded_texts):
-    while True:
-        selected_shift = input("해독된 자리수를 입력하세요(0-25): ")
-        try:
-            selected_shift = int(selected_shift)
-        except ValueError:
-            print("숫자를 입력해 주세요.")
-            continue
-
-        if 0 <= selected_shift < ALPHABET_COUNT:
-            return selected_shift
+if "A" <= char <= "Z":
+    decoded_text += chr((ord(char) - ord("A") - shift) % ALPHABET_COUNT + ord("A"))
+elif "a" <= char <= "z":
+    decoded_text += chr((ord(char) - ord("a") - shift) % ALPHABET_COUNT + ord("a"))
+else:
+    decoded_text += char
 ```
-- **해석 및 의도**:
-  - `while True` 무한 루프 안에서 사용자 인터랙션을 받습니다.
-  - **왜 이렇게 썼는가?**: 사용자의 입력은 항상 예측 불가능합니다. 문자를 입력하거나 범위(0~25)를 벗어난 숫자를 입력할 경우 프로그램이 종료되지 않도록 `try-except ValueError`로 타입 검증을 수행하고, 논리 연산자(`0 <= selected_shift < ALPHABET_COUNT`)로 범위 검증을 수행합니다. 
-  - 올바른 데이터를 입력받을 때까지(Validation) 반복함으로써 프로그램의 불시 종료(Robustness)를 막습니다.
 
----
+문자를 해독할 때 대문자는 대문자로, 소문자는 소문자로 유지합니다.
 
-## 3. 총평 (Architecture Summary)
-- **상수 분리**: `ALPHABET_COUNT = 26`을 하드코딩하지 않고 전역 상수로 정의하여 매직 넘버(Magic Number)를 없앴습니다.
-- **모듈화**: 파일 읽기, 암호 해독, 입력 받기, 파일 저장 등의 역할을 각각의 함수로 잘 분기 및 결합하여 단일 책임 원칙(SRP)에 근접하게 설계되었습니다.
+알파벳이 아닌 공백, 숫자, 특수문자는 암호화 대상이 아니므로 그대로 남겨 둡니다. 이렇게 하면 원래 문장의 띄어쓰기와 문장 구조가 보존되어 해독 결과를 더 쉽게 읽을 수 있습니다.
+
+### 3. 모듈러 연산으로 알파벳 순환 처리하기
+
+```python
+(ord(char) - ord("A") - shift) % ALPHABET_COUNT
+```
+
+알파벳을 뒤로 이동하다 보면 `A`보다 앞쪽으로 넘어가는 경우가 생깁니다. 예를 들어 `A`를 1칸 되돌리면 다시 `Z`가 되어야 합니다.
+
+`% ALPHABET_COUNT`는 이런 순환 처리를 간단하게 해결합니다. 별도의 조건문으로 `A`보다 작아졌는지 검사하지 않아도, 계산 결과가 항상 `0~25` 범위 안에 머물게 됩니다.
+
+### 4. 안전한 파일 읽기와 쓰기
+
+```python
+try:
+    with open("password.txt", "r", encoding="utf-8") as file:
+        return file.read()
+except FileNotFoundError:
+    print("password.txt 파일을 찾을 수 없습니다.")
+```
+
+파일 입출력은 파일이 없거나 권한이 부족한 경우 실패할 수 있습니다. 그래서 `try-except`로 오류 상황을 처리합니다.
+
+또한 `with open(...)`을 사용해 파일을 열면, 작업이 끝났을 때 파일이 자동으로 닫힙니다. 중간에 오류가 발생해도 파일 자원이 정리되므로 더 안전합니다.
+
+### 5. 사용자 입력 검증하기
+
+```python
+while True:
+    selected_shift = input("해독된 자리수를 입력하세요(0-25): ")
+```
+
+사용자가 숫자가 아닌 값을 입력하거나 `0~25` 범위를 벗어난 숫자를 입력할 수 있으므로, 입력값을 바로 사용하지 않고 검증합니다.
+
+올바른 Shift 번호가 들어올 때까지 반복해서 입력을 받기 때문에, 잘못된 입력으로 프로그램이 갑자기 종료되는 일을 줄일 수 있습니다.
+
+## 예시
+
+`password.txt` 내용이 아래와 같다면:
+
+```text
+B ehox Ftkl
+```
+
+프로그램은 가능한 해독 결과를 모두 출력합니다. 그중 의미가 맞는 결과는 다음과 같습니다.
+
+```text
+I love Mars
+```
+
+해당 Shift 번호를 입력하면 최종 결과가 `result.txt`에 저장됩니다.
+
+## 정리
+
+이 프로그램은 카이사르 암호의 Shift 값을 모를 때 사용할 수 있는 간단한 해독 도구입니다. 핵심은 모든 Shift 값을 시도하는 브루트 포스 방식이며, 파일 입출력 예외 처리와 사용자 입력 검증을 통해 기본적인 안정성도 갖추고 있습니다.
