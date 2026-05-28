@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import ctypes
 import glob
 from ctypes import wintypes
 import os
 import sys
 import wave
+from functools import lru_cache
 from datetime import datetime
 
-if os.name != 'nt':
-    raise OSError('This recorder currently supports Windows only.')
+try:
+    from faster_whisper import WhisperModel
+except ImportError:
+    WhisperModel = None
 
 WAVE_MAPPER = 0xFFFF_FFFF
 WAVE_FORMAT_PCM = 1
@@ -31,6 +35,9 @@ DWORD_PTR = getattr(wintypes, 'DWORD_PTR', ctypes.c_size_t)
 # 녹음 파일은 정렬과 조회가 쉽도록 간단한 시간 형식으로 저장한다.
 DATE_INPUT_FORMAT = '%Y-%m-%d'
 RECORDING_TIMESTAMP_FORMAT = '%Y%m%d-%H%M%S'
+STT_MODEL_NAME = os.environ.get('JAVIS_STT_MODEL', 'tiny')
+STT_DEVICE = 'cpu'
+STT_COMPUTE_TYPE = 'int8'
 
 
 def _check_mmresult(result: int, action: str) -> None:
@@ -84,61 +91,83 @@ class WAVEINCAPSW(ctypes.Structure):
     ]
 
 
-winmm = ctypes.windll.winmm
-kernel32 = ctypes.windll.kernel32
+if os.name == 'nt':
+    winmm = ctypes.windll.winmm
+    kernel32 = ctypes.windll.kernel32
 
-waveInGetNumDevs = winmm.waveInGetNumDevs
-waveInGetNumDevs.restype = wintypes.UINT
+    waveInGetNumDevs = winmm.waveInGetNumDevs
+    waveInGetNumDevs.restype = wintypes.UINT
 
-waveInGetDevCapsW = winmm.waveInGetDevCapsW
-waveInGetDevCapsW.argtypes = [wintypes.UINT, ctypes.POINTER(WAVEINCAPSW), wintypes.UINT]
-waveInGetDevCapsW.restype = wintypes.UINT
+    waveInGetDevCapsW = winmm.waveInGetDevCapsW
+    waveInGetDevCapsW.argtypes = [wintypes.UINT, ctypes.POINTER(WAVEINCAPSW), wintypes.UINT]
+    waveInGetDevCapsW.restype = wintypes.UINT
 
-waveInOpen = winmm.waveInOpen
-waveInOpen.argtypes = [
-    ctypes.POINTER(wintypes.HANDLE),
-    wintypes.UINT,
-    ctypes.POINTER(WAVEFORMATEX),
-    DWORD_PTR,
-    DWORD_PTR,
-    wintypes.DWORD,
-]
-waveInOpen.restype = wintypes.UINT
+    waveInOpen = winmm.waveInOpen
+    waveInOpen.argtypes = [
+        ctypes.POINTER(wintypes.HANDLE),
+        wintypes.UINT,
+        ctypes.POINTER(WAVEFORMATEX),
+        DWORD_PTR,
+        DWORD_PTR,
+        wintypes.DWORD,
+    ]
+    waveInOpen.restype = wintypes.UINT
 
-waveInPrepareHeader = winmm.waveInPrepareHeader
-waveInPrepareHeader.argtypes = [wintypes.HANDLE, ctypes.POINTER(WAVEHDR), wintypes.UINT]
-waveInPrepareHeader.restype = wintypes.UINT
+    waveInPrepareHeader = winmm.waveInPrepareHeader
+    waveInPrepareHeader.argtypes = [wintypes.HANDLE, ctypes.POINTER(WAVEHDR), wintypes.UINT]
+    waveInPrepareHeader.restype = wintypes.UINT
 
-waveInUnprepareHeader = winmm.waveInUnprepareHeader
-waveInUnprepareHeader.argtypes = [wintypes.HANDLE, ctypes.POINTER(WAVEHDR), wintypes.UINT]
-waveInUnprepareHeader.restype = wintypes.UINT
+    waveInUnprepareHeader = winmm.waveInUnprepareHeader
+    waveInUnprepareHeader.argtypes = [wintypes.HANDLE, ctypes.POINTER(WAVEHDR), wintypes.UINT]
+    waveInUnprepareHeader.restype = wintypes.UINT
 
-waveInAddBuffer = winmm.waveInAddBuffer
-waveInAddBuffer.argtypes = [wintypes.HANDLE, ctypes.POINTER(WAVEHDR), wintypes.UINT]
-waveInAddBuffer.restype = wintypes.UINT
+    waveInAddBuffer = winmm.waveInAddBuffer
+    waveInAddBuffer.argtypes = [wintypes.HANDLE, ctypes.POINTER(WAVEHDR), wintypes.UINT]
+    waveInAddBuffer.restype = wintypes.UINT
 
-waveInStart = winmm.waveInStart
-waveInStart.argtypes = [wintypes.HANDLE]
-waveInStart.restype = wintypes.UINT
+    waveInStart = winmm.waveInStart
+    waveInStart.argtypes = [wintypes.HANDLE]
+    waveInStart.restype = wintypes.UINT
 
-waveInStop = winmm.waveInStop
-waveInStop.argtypes = [wintypes.HANDLE]
-waveInStop.restype = wintypes.UINT
+    waveInStop = winmm.waveInStop
+    waveInStop.argtypes = [wintypes.HANDLE]
+    waveInStop.restype = wintypes.UINT
 
-waveInReset = winmm.waveInReset
-waveInReset.argtypes = [wintypes.HANDLE]
-waveInReset.restype = wintypes.UINT
+    waveInReset = winmm.waveInReset
+    waveInReset.argtypes = [wintypes.HANDLE]
+    waveInReset.restype = wintypes.UINT
 
-waveInClose = winmm.waveInClose
-waveInClose.argtypes = [wintypes.HANDLE]
-waveInClose.restype = wintypes.UINT
+    waveInClose = winmm.waveInClose
+    waveInClose.argtypes = [wintypes.HANDLE]
+    waveInClose.restype = wintypes.UINT
 
-waveInGetErrorTextW = winmm.waveInGetErrorTextW
-waveInGetErrorTextW.argtypes = [wintypes.UINT, wintypes.LPWSTR, wintypes.UINT]
-waveInGetErrorTextW.restype = wintypes.UINT
+    waveInGetErrorTextW = winmm.waveInGetErrorTextW
+    waveInGetErrorTextW.argtypes = [wintypes.UINT, wintypes.LPWSTR, wintypes.UINT]
+    waveInGetErrorTextW.restype = wintypes.UINT
+else:
+    winmm = None
+    kernel32 = None
+    waveInGetNumDevs = None
+    waveInGetDevCapsW = None
+    waveInOpen = None
+    waveInPrepareHeader = None
+    waveInUnprepareHeader = None
+    waveInAddBuffer = None
+    waveInStart = None
+    waveInStop = None
+    waveInReset = None
+    waveInClose = None
+    waveInGetErrorTextW = None
+
+
+def _ensure_windows_platform() -> None:
+    if os.name != 'nt':
+        raise OSError('This recorder currently supports Windows only.')
 
 
 def list_input_devices() -> list[str]:
+    _ensure_windows_platform()
+
     device_count = waveInGetNumDevs()
     devices: list[str] = []
 
@@ -182,6 +211,71 @@ def parse_recording_timestamp(file_path: str) -> datetime | None:
         return datetime.strptime(stem, RECORDING_TIMESTAMP_FORMAT)
     except ValueError:
         return None
+
+
+def format_segment_timestamp(seconds: float) -> str:
+    total_milliseconds = int(round(seconds * 1000))
+    hours, remainder = divmod(total_milliseconds, 3_600_000)
+    minutes, remainder = divmod(remainder, 60_000)
+    seconds_part, milliseconds = divmod(remainder, 1000)
+    return f'{hours:02d}:{minutes:02d}:{seconds_part:02d}.{milliseconds:03d}'
+
+
+@lru_cache(maxsize=1)
+def load_stt_model() -> WhisperModel:
+    if WhisperModel is None:
+        raise RuntimeError(
+            'STT 기능을 사용하려면 faster-whisper 패키지를 설치해야 합니다.'
+        )
+
+    return WhisperModel(STT_MODEL_NAME, device=STT_DEVICE, compute_type=STT_COMPUTE_TYPE)
+
+
+def transcribe_audio_file(audio_path: str) -> list[tuple[str, str]]:
+    model = load_stt_model()
+    segments, _ = model.transcribe(audio_path, vad_filter=True)
+
+    recognized_rows: list[tuple[str, str]] = []
+    for segment in segments:
+        recognized_text = segment.text.strip()
+        if not recognized_text:
+            continue
+
+        recognized_rows.append((format_segment_timestamp(segment.start), recognized_text))
+
+    return recognized_rows
+
+
+def build_transcription_csv_path(audio_path: str) -> str:
+    directory = os.path.dirname(audio_path)
+    base_name, _ = os.path.splitext(os.path.basename(audio_path))
+    return os.path.join(directory, f'{base_name}.CSV')
+
+
+def save_transcription_csv(audio_path: str, rows: list[tuple[str, str]]) -> str:
+    csv_path = build_transcription_csv_path(audio_path)
+
+    with open(csv_path, 'w', newline='', encoding='utf-8-sig') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(['시간', '인식된 텍스트'])
+        writer.writerows(rows)
+
+    return csv_path
+
+
+def transcribe_recording(audio_path: str) -> str:
+    rows = transcribe_audio_file(audio_path)
+    return save_transcription_csv(audio_path, rows)
+
+
+def transcribe_recordings(recording_paths: list[str]) -> list[str]:
+    csv_paths: list[str] = []
+
+    for recording_path in recording_paths:
+        csv_path = transcribe_recording(recording_path)
+        csv_paths.append(csv_path)
+
+    return csv_paths
 
 
 def list_recordings_in_range(start_date: datetime, end_date: datetime) -> list[str]:
@@ -236,6 +330,8 @@ def create_wave_format(sample_rate: int = 16000, channels: int = 1, bits_per_sam
 
 
 def record_audio(duration_seconds: float, output_path: str | None = None) -> str:
+    _ensure_windows_platform()
+
     if duration_seconds <= 0:
         raise ValueError('duration_seconds must be greater than 0.')
 
@@ -313,7 +409,7 @@ def parse_arguments(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         '--list-recordings',
         action='store_true',
-        help='Show recordings saved in the date range and exit.',
+        help='Show recordings saved in the date range, run STT, and save CSV files.',
     )
     parser.add_argument(
         '--start-date',
@@ -360,6 +456,10 @@ def main(argv: list[str] | None = None) -> int:
 
         for recording_path in recordings:
             print(recording_path)
+
+        csv_paths = transcribe_recordings(recordings)
+        for csv_path in csv_paths:
+            print(csv_path)
         return 0
 
     if arguments.list_devices:
